@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finance Agents — Diwali Festiverse</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #0f1220; color: #e8eaf2; }
+  header { padding: 16px; background: linear-gradient(135deg, #7c3aed, #2563eb); }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+  .sim { display: inline-block; margin-top: 8px; background: #f59e0b; color: #111; font-weight: 700; font-size: 12px; padding: 3px 8px; border-radius: 999px; }
+  main { padding: 12px; max-width: 720px; margin: 0 auto; }
+  .card { background: #1a1e33; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .card h2 { margin: 0 0 8px; font-size: 15px; color: #a5b4fc; }
+  .big { font-size: 28px; font-weight: 800; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .label { font-size: 12px; color: #9aa3c0; }
+  .value { font-size: 18px; font-weight: 700; }
+  .pos { color: #4ade80; } .neg { color: #f87171; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 800; font-size: 14px; }
+  .LONG { background: #14532d; color: #4ade80; }
+  .SHORT { background: #7f1d1d; color: #f87171; }
+  .FLAT { background: #334155; color: #cbd5e1; }
+  button { width: 100%; padding: 12px; font-size: 16px; font-weight: 700; border: 0; border-radius: 10px; background: #7c3aed; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #2a2f4a; }
+  .msg { font-size: 13px; padding: 8px; border-left: 3px solid #7c3aed; background: #141830; margin-bottom: 6px; border-radius: 0 8px 8px 0; }
+  .msg.trader { border-left-color: #2563eb; }
+  .msg .who { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #a5b4fc; }
+  .msg .ts { font-size: 11px; color: #9aa3c0; }
+  .reason { font-size: 13px; color: #c7cde6; margin: 6px 0 0; }
+  #status { text-align: center; font-size: 13px; color: #9aa3c0; margin-top: 8px; min-height: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖📈 Finance Agents</h1>
+  <p>Diwali Festiverse — Analyst Agent + Trader Agent (BTC/USD)</p>
+  <span class="sim">SIMULATED TRADING ONLY — no real money</span>
+</header>
+<main>
+  <div class="card">
+    <h2>Analyst Agent — latest signal</h2>
+    <div id="signal">Loading…</div>
+  </div>
+  <div class="card">
+    <h2>Paper account</h2>
+    <div class="row">
+      <div><div class="label">Equity</div><div class="value" id="equity">—</div></div>
+      <div><div class="label">Cash</div><div class="value" id="cash">—</div></div>
+      <div><div class="label">Total P/L</div><div class="value" id="pnl">—</div></div>
+    </div>
+    <div style="margin-top:10px"><div class="label">BTC/USD price</div><div class="value" id="price">—</div></div>
+  </div>
+  <div class="card">
+    <h2>Open simulated position</h2>
+    <div id="positions">Loading…</div>
+  </div>
+  <div class="card">
+    <h2>Closed simulated trades</h2>
+    <div id="trades">Loading…</div>
+  </div>
+  <div class="card">
+    <button id="runBtn" onclick="runCycle()">▶ Run one Analyst → Trader cycle</button>
+    <div id="status"></div>
+  </div>
+  <div class="card">
+    <h2>Agent message log</h2>
+    <div id="messages">Loading…</div>
+  </div>
+</main>
+<script>
+async function load() {
+  const r = await fetch('/api/state');
+  const s = await r.json();
+  const fmt = n => '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  document.getElementById('equity').textContent = fmt(s.equity);
+  document.getElementById('cash').textContent = fmt(s.cash);
+  const pnlEl = document.getElementById('pnl');
+  pnlEl.textContent = (s.total_pnl >= 0 ? '+' : '') + fmt(s.total_pnl);
+  pnlEl.className = 'value ' + (s.total_pnl >= 0 ? 'pos' : 'neg');
+  document.getElementById('price').textContent = s.price ? fmt(s.price) : '—';
+  const sig = s.signal;
+  document.getElementById('signal').innerHTML = sig
+    ? `<span class="badge ${sig.direction}">${sig.direction}</span>
+       <span style="margin-left:8px">confidence ${(sig.confidence * 100).toFixed(0)}%</span>
+       <p class="reason">${sig.reason}</p>
+       <p class="reason">SMA-10 ${fmt(sig.sma_fast)} · SMA-30 ${fmt(sig.sma_slow)} · ATR ${fmt(sig.atr)} · ${sig.source} · ${sig.ts}</p>`
+    : 'No signal yet — run a cycle.';
+  document.getElementById('positions').innerHTML = s.positions.length
+    ? s.positions.map(p => `<div><b>${p.side}</b> ${p.qty} ${p.symbol} @ ${fmt(p.entry)}<br>
+        Stop ${fmt(p.stop)} · Take-profit ${fmt(p.tp)} · Risk ${fmt(p.risk_dollars)}<br>
+        <span class="label">opened ${p.opened_at}</span></div>`).join('')
+    : 'No open position.';
+  document.getElementById('trades').innerHTML = s.trades.length
+    ? `<table><tr><th>Side</th><th>Entry → Exit</th><th>P/L</th><th>Reason</th></tr>` +
+      s.trades.map(t => `<tr><td>${t.side}</td><td>${fmt(t.entry)} → ${fmt(t.exit)}</td>
+        <td class="${t.pnl >= 0 ? 'pos' : 'neg'}">${t.pnl >= 0 ? '+' : ''}${fmt(t.pnl)}</td>
+        <td>${t.reason}</td></tr>`).join('') + '</table>'
+    : 'No closed trades yet.';
+  document.getElementById('messages').innerHTML = s.messages.length
+    ? s.messages.map(m => `<div class="msg ${m.from}"><span class="who">${m.from}</span>
+        <span class="ts">${m.ts}</span> · <b>${m.type}</b><br>
+        ${escapeHtml(JSON.stringify(m.data))}</div>`).join('')
+    : 'No messages yet.';
+}
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+async function runCycle() {
+  const btn = document.getElementById('runBtn');
+  const st = document.getElementById('status');
+  btn.disabled = true; st.textContent = 'Running Analyst → Trader…';
+  try {
+    const r = await fetch('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+    const s = await r.json();
+    if (!r.ok) { st.textContent = 'Error: ' + (s.error || r.status); }
+    else { st.textContent = 'Cycle done.'; await load(); return; }
+  } catch (e) { st.textContent = 'Error: ' + e.message; }
+  btn.disabled = false;
+  setTimeout(() => { btn.disabled = false; }, 1000);
+  await load();
+}
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>

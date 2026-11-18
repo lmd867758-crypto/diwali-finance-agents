@@ -1,0 +1,3 @@
+# No third-party dependencies.
+# Everything is Python 3 standard library (urllib, http.server, json).
+# Python 3.10+ is enough. No pip install step is needed.
